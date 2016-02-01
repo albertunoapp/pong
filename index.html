@@ -1,0 +1,219 @@
+<!doctype html>
+<html>
+	<head>
+		<title>Pong</title>
+		<style>
+			* { margin: 0; padding: 0; box-sizing: border-box; }
+			html, body { background-color: #fff; }
+			body { font: 13px Helvetica, Arial; }
+			#blue { position: absolute; top: 475px; left: 0; width: 64px; height: 5px; background-color: #00b; z-index: 3; display: none; }
+			#blueBullet { position: absolute; top: 475px; left: 0; width: 5px; height: 5px; background-color: #55b; z-index: 3; display: none; }
+			#red { position: absolute; top: 0; left: 288px; width: 64px; height: 5px; background-color: #b00; z-index: 3; display: none; }
+			#redBullet { position: absolute; top: 0; left: 288px; width: 5px; height: 5px; background-color: #b55; z-index: 3; display: none; }
+			#ball { position: absolute; top: 5px; left: 14px; width: 5px; height: 5px; background-color: #000; z-index: 2; display: none; }
+			#ball2 { position: absolute; top: 5px; left: 14px; width: 5px; height: 5px; background-color: #0ff; z-index: 2; display: none; }
+			#explosion { position: absolute; top: 5px; left: 14px; width: 5px; height: 55px; background-color: #fff; z-index: 2; display: none; }
+			#bg { position: absolute; top: 0; left: 0; width: 320px; height: 480px; background-color: #ccc; z-index: 1; }
+			#countdown { position: absolute; top: 0px; left: 0; width: 320px; height: 480px; color: #333; line-height: 480px; font-size: 64px; font-family: 'Comfortaa'; text-align: center; z-index: 4; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; -o-user-select: none; user-select: none; }
+			#winner { position: absolute; top: 0px; left: 0; width: 320px; height: 480px; color: #333; line-height: 480px; font-size: 48px; font-family: 'Comfortaa'; text-align: center; text-transform: uppercase; z-index: 4; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; -o-user-select: none; user-select: none; }
+			#blueName { position: absolute; top: 0px; left: 330px; color: #00b; font-size: 12px; font-family: 'Comfortaa'; z-index: 5; }
+			#blueName:before { content: '\25AA'; }
+			#redName { position: absolute; top: 16px; left: 330px; color: #b00; font-size: 12px; font-family: 'Comfortaa'; z-index: 5; }
+			#redName:before { content: '\25AA'; }
+			#spectatorName { position: absolute; top: 32px; left: 330px; color: #555; font-size: 12px; font-family: 'Comfortaa'; z-index: 5; }
+		</style>
+		<link href='https://fonts.googleapis.com/css?family=Comfortaa' rel='stylesheet' type='text/css'>
+	</head>
+	<body>
+		<audio id="pong_miss" preload="auto" src="http://atylee.com/pong_sfx/pong_miss.wav" type="audio/mpeg"></audio>
+		<audio id="pong_win" preload="auto" src="http://atylee.com/pong_sfx/pong_win.wav" type="audio/mpeg"></audio>
+		<audio id="pong_wall" preload="auto" src="http://atylee.com/pong_sfx/pong_wall.wav" type="audio/mpeg"></audio>
+		<audio id="pong_paddle" preload="auto" src="http://atylee.com/pong_sfx/pong_paddle.wav" type="audio/mpeg"></audio>
+		<audio id="pong_start" preload="auto" src="http://atylee.com/pong_sfx/pong_start.wav" type="audio/mpeg"></audio>
+		<audio id="pong_countdown" preload="auto" src="http://atylee.com/pong_sfx/pong_countdown.wav" type="audio/mpeg"></audio>
+		<audio id="pong_stun" preload="auto" src="http://atylee.com/pong_sfx/pong_stun.wav" type="audio/mpeg"></audio>
+		<audio id="pong_shot" preload="auto" src="http://atylee.com/pong_sfx/pong_shot.wav" type="audio/mpeg"></audio>
+		<div id="bg"></div>
+		<div id="blue"></div>
+		<div id="red"></div>
+		<div id="blueBullet"></div>
+		<div id="redBullet"></div>
+		<div id="ball"></div>
+		<div id="ball2"></div>
+		<div id="explosion"></div>
+		<div id="colour"></div>
+		<div id="countdown"></div>
+		<div id="winner"></div>
+		<div id="blueName"></div>
+		<div id="redName"></div>
+		<div id="spectatorName"></div>
+		<script src="https://cdn.socket.io/socket.io-1.2.0.js"></script>
+		<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+		<script>
+			// Generate random "bright" colour
+			var randomColour = function() {
+				var chars = '6789abcdef';
+				var colour = '#';
+				for (var i = 0; i < 6; i++) {
+					colour += chars.charAt(Math.floor(Math.random() * chars.length));
+				}
+				return colour;
+			}
+			//var socket = io();
+			var socket = io.connect(location.href, { reconnection: false });
+			var redMode = false;
+			// Send keyboard input to server
+			$(document).keydown(function(event) {
+				if (event.keyCode == 37) {
+					if (!redMode) socket.emit('left', true);
+					else socket.emit('right', true);
+				} else if (event.keyCode == 39) {
+					if (!redMode) socket.emit('right', true);
+					else socket.emit('left', true);
+				} else if (event.keyCode == 38) {
+					socket.emit('fire', true);
+				}
+			});
+			$(document).keyup(function() {
+				if (event.keyCode == 37) {
+					if (!redMode) socket.emit('left', false);
+					else socket.emit('right', false);
+				} else if (event.keyCode == 39) {
+					if (!redMode) socket.emit('right', false);
+					else socket.emit('left', false);
+				} else if (event.keyCode == 38) {
+					socket.emit('fire', false);
+				}
+			});
+			$('#blueName').click(function() {
+				socket.emit('kick', 'blue');
+			});
+			$('#redName').click(function() {
+				socket.emit('kick', 'red');
+			});
+			// Receive colour designation from server
+			socket.on('colour', function(colour){
+				if (colour == 'red') {
+					redMode = true;
+					$('#red').css('top',475);
+					$('#blue').css('top',0);
+				} else {
+					redMode = false;
+					$('#red').css('top',0);
+					$('#blue').css('top',475);
+				}
+			});
+			// Receive game state updates from server
+			socket.on('update', function(data){
+				window.data = data;
+				// Display ball if game has started
+				if (data.gameState.winner == '') {
+					$('#ball').show();
+				}
+				// Display paddles and ball
+				if (!redMode) {
+					$('#blue').css('left', data.gameState.blue.x).show();
+					$('#red').css('left', data.gameState.red.x).show();
+					$('#ball').css('left', data.gameState.ball.x).css('top', data.gameState.ball.y);
+					$('#ball2').css('left', data.gameState.invisible_ball.x).css('top', data.gameState.invisible_ball.y);
+				} else {
+					$('#blue').css('left', 320-data.gameState.blue.x-64).show();
+					$('#red').css('left', 320-data.gameState.red.x-64).show();
+					$('#ball').css('left', 320-data.gameState.ball.x-5).css('top', 480-data.gameState.ball.y-5);
+					$('#ball2').css('left', 320-data.gameState.invisible_ball.x).css('top', 480-data.gameState.invisible_ball.y);
+				}
+				// Play sounds
+				for (var i = 0; i < data.gameState.playSound.length; i++) {
+					$('#'+data.gameState.playSound[i]).get(0).currentTime = 0;
+					$('#'+data.gameState.playSound[i]).get(0).play();
+				}
+				// Countdown timer
+				$('#countdown').text(data.gameState.timer);
+				// Reset winner text
+				if (data.gameState.winner == '') {
+					$('#winner').text('');
+				}
+				// Display winner
+				if (data.gameState.winner != '' && $('#ball').is(':visible')) {
+					$('#ball').hide();
+					// Animate explosion where ball was last seen
+					$('#explosion').css('left', parseInt($('#ball').css('left'))).css('top', parseInt($('#ball').css('top')) - 10).css('height', 25).css('opacity', 1).show();
+					var fadeout = function() {
+						if ($('#explosion').css('opacity') == 1) {
+							$('#explosion').css('height', parseInt($('#explosion').css('height')) + 40);
+							$('#explosion').css('top', parseInt($('#explosion').css('top')) - 20);
+						}
+						if ($('#explosion').css('opacity') > 0) {
+							$('#explosion').css('opacity', $('#explosion').css('opacity') - 0.1);
+							$('#explosion').css('height', parseInt($('#explosion').css('height')) - 4);
+							$('#explosion').css('top', parseInt($('#explosion').css('top')) + 2);
+						} else {
+							$('#explosion').hide().css('height', 55);
+						}
+						clearTimeout(window.fadeoutTimeout);
+						window.fadeoutTimeout = setTimeout(fadeout, 100);
+					};
+					if (window.fadeoutTimeout) {
+						clearTimeout(window.fadeoutTimeout);
+					}
+					window.fadeoutTimeout = setTimeout(fadeout, 100);
+					setTimeout(function() {
+						$('#pong_win').get(0).currentTime = 0;
+						$('#pong_win').get(0).play();
+						$('#winner').text(data.gameState.winner + ' WINS!');
+					}, 1000);
+				}
+				// Display users
+				$('#blueName').html('&nbsp; ' + data.gameState.blue.user.username + ' (' + data.gameState.blue.user.score + ')' + ' Ping: ' + data.gameState.blue.user.ping);
+				$('#redName').html('&nbsp; ' + data.gameState.red.user.username + ' (' + data.gameState.red.user.score + ')' + ' Ping: ' + data.gameState.red.user.ping);
+				$('#spectatorName').html('');
+				for (var i = 0; i < data.users.length; i++) {
+					if (data.gameState.blue.user.socket_id == data.users[i].socket_id ||
+					data.gameState.red.user.socket_id == data.users[i].socket_id) {
+						continue; // Skip active players
+					}
+					$('#spectatorName').html($('#spectatorName').html() + data.users[i].username + ' (' + data.users[i].score + ')' + ' Ping: ' + data.users[i].ping + '<br>');
+				}
+				// Flash paddle if stunned
+				if (data.gameState.blue.stunCounter > 0) {
+					$('#blue').css('background-color', randomColour());
+				} else {
+					$('#blue').css('background-color', '#00b');
+				}
+				if (data.gameState.red.stunCounter > 0) {
+					$('#red').css('background-color', randomColour());
+				} else {
+					$('#red').css('background-color', '#b00');
+				}
+				// Display bullets fired
+				if (data.gameState.blue.bullet) {
+					if (!redMode) {
+						$('#blueBullet').show().css('left', data.gameState.blue.bullet.x).css('top', data.gameState.blue.bullet.y);
+					} else {
+						$('#blueBullet').show().css('left', 320 - data.gameState.blue.bullet.x - 5).css('top', 480 - data.gameState.blue.bullet.y - 5);
+					}
+				} else {
+					$('#blueBullet').hide();
+				}
+				if (data.gameState.red.bullet) {
+					if (!redMode) {
+						$('#redBullet').show().css('left', data.gameState.red.bullet.x).css('top', data.gameState.red.bullet.y);
+					} else {
+						$('#redBullet').show().css('left', 320 - data.gameState.red.bullet.x - 5).css('top', 480 - data.gameState.red.bullet.y - 5);
+					}
+				} else {
+					$('#redBullet').hide();
+				}
+			});
+			// Let player know they were disconnected
+			socket.on('disconnect', function() {
+				alert('Disconnected from server.');
+				$('body').html('<a href="javascript:location.reload();">Refresh the page to reconnect</a>');
+			});
+			// Respond to a ping
+			socket.on('ping', function() {
+				 socket.emit('ping response', true);
+			});
+		</script>
+	</body>
+</html>
